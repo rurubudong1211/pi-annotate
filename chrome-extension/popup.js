@@ -2,10 +2,14 @@
 
 const extId = chrome.runtime.id;
 const installCmd = `./install.sh ${extId}`;
+const installCmdEdge = `.\\install-windows.ps1 -EdgeExtensionId ${extId}`;
+const installCmdChrome = `.\\install-windows.ps1 -ChromeExtensionId ${extId}`;
 
 // Elements
 const extIdInput = document.getElementById('ext-id');
 const installCmdInput = document.getElementById('install-cmd');
+const installCmdEdgeInput = document.getElementById('install-cmd-edge');
+const installCmdChromeInput = document.getElementById('install-cmd-chrome');
 const statusDot = document.getElementById('status-dot');
 const statusText = document.getElementById('status-text');
 const setupSection = document.getElementById('setup-section');
@@ -15,6 +19,8 @@ const troubleSection = document.getElementById('trouble-section');
 // Populate fields
 extIdInput.value = extId;
 installCmdInput.value = installCmd;
+installCmdEdgeInput.value = installCmdEdge;
+installCmdChromeInput.value = installCmdChrome;
 
 // Platform-aware displays
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -57,6 +63,14 @@ document.getElementById('copy-id').addEventListener('click', (e) => {
 
 document.getElementById('copy-cmd').addEventListener('click', (e) => {
   copyToClipboard(installCmd, e.target);
+});
+
+document.getElementById('copy-cmd-edge').addEventListener('click', (e) => {
+  copyToClipboard(installCmdEdge, e.target);
+});
+
+document.getElementById('copy-cmd-chrome').addEventListener('click', (e) => {
+  copyToClipboard(installCmdChrome, e.target);
 });
 
 // Start annotation button — routes through background script which handles injection
