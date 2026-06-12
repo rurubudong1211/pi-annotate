@@ -6,8 +6,13 @@ import * as path from "node:path";
 import * as os from "node:os";
 import type { AnnotationResult, ElementSelection, EditCapture } from "./types.js";
 
-const SOCKET_PATH = "/tmp/pi-annotate.sock";
-const TOKEN_PATH = "/tmp/pi-annotate.token";
+const IS_WINDOWS = process.platform === "win32";
+const WINDOWS_STATE_DIR = path.join(
+  process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "AppData", "Local") : os.tmpdir()),
+  "pi-annotate",
+);
+const SOCKET_PATH = IS_WINDOWS ? "\\\\.\\pipe\\pi-annotate" : "/tmp/pi-annotate.sock";
+const TOKEN_PATH = IS_WINDOWS ? path.join(WINDOWS_STATE_DIR, "pi-annotate.token") : "/tmp/pi-annotate.token";
 const MAX_SOCKET_BUFFER = 32 * 1024 * 1024; // 32MB (increased from 8MB for edit capture payloads)
 const MAX_SCREENSHOT_BYTES = 15 * 1024 * 1024; // 15MB
 

@@ -37,13 +37,29 @@ Restart pi to load the extension.
 
 ### 3. Install Native Host
 
-The popup shows your extension ID. Click **Copy** next to the install command, then run it from `chrome-extension/native/` in the installed package:
+The popup shows your extension ID. Click **Copy** next to the install command, then run the installer from `chrome-extension/native/` in the installed package.
+
+macOS/Linux:
 
 ```bash
 ./install.sh <extension-id>
 ```
 
-This installs the native messaging manifest for Google Chrome, Google Chrome for Testing, and Chromium on macOS, plus the default/current config-home locations for those browsers on Linux. Fully quit and reopen that browser. The popup will show **Connected** when ready.
+Windows PowerShell:
+
+```powershell
+.\install-windows.ps1 -ChromeExtensionId <chrome-extension-id>
+.\install-windows.ps1 -EdgeExtensionId <edge-extension-id>
+.\install-windows.ps1 -ChromeExtensionId <chrome-extension-id> -EdgeExtensionId <edge-extension-id>
+```
+
+The old positional Windows form still works for Chrome:
+
+```powershell
+.\install-windows.ps1 <chrome-extension-id>
+```
+
+The macOS/Linux installer writes native messaging manifests for Google Chrome, Google Chrome for Testing, and Chromium. The Windows installer writes native messaging registry keys for the browsers you pass: Google Chrome under `HKCU\Software\Google\Chrome\NativeMessagingHosts\com.pi.annotate` and Microsoft Edge under `HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.pi.annotate`. Fully quit and reopen that browser. The popup will show **Connected** when ready.
 
 ## Usage
 
@@ -138,10 +154,10 @@ Debug mode adds computed styles, parent context, and CSS variables per element. 
 
 ```
 Pi Extension (index.ts)
-    ↕ Unix Socket (/tmp/pi-annotate.sock)
+    -> Local IPC (/tmp/pi-annotate.sock on Unix, \\.\pipe\pi-annotate on Windows)
 Native Host (host.cjs)
-    ↕ Browser Native Messaging
-Browser Extension (background.js → content.js)
+    -> Browser Native Messaging
+Browser Extension (background.js -> content.js)
 ```
 
 | File | Purpose |
@@ -150,10 +166,11 @@ Browser Extension (background.js → content.js)
 | `types.ts` | TypeScript interfaces |
 | `chrome-extension/content.js` | Element picker UI (vanilla JS) |
 | `chrome-extension/background.js` | Native messaging, screenshots, tab routing |
-| `chrome-extension/native/host.cjs` | Socket ↔ native messaging bridge |
+| `chrome-extension/native/host.cjs` | Local IPC to native messaging bridge |
+| `chrome-extension/native/install-windows.ps1` | Windows native messaging registry installer |
 | `chrome-extension/popup.html` | Connection status + setup |
 
-Auth token generated per-run at `/tmp/pi-annotate.token`. Socket and token files use 0600 permissions.
+Auth token generated per-run at `/tmp/pi-annotate.token` on Unix and `%LOCALAPPDATA%\pi-annotate\pi-annotate.token` on Windows. Unix socket and token files use 0600 permissions where supported. Windows uses the named pipe `\\.\pipe\pi-annotate`.
 
 ## Development
 
@@ -165,6 +182,12 @@ tail -f /tmp/pi-annotate-host.log                    # Native host logs
 # DevTools on target page                              # Content script logs
 ```
 
+On Windows, native host logs are written to:
+
+```powershell
+Get-Content -Wait "$env:LOCALAPPDATA\pi-annotate\pi-annotate-host.log"
+```
+
 ## Troubleshooting
 
 | Issue | Fix |
@@ -173,9 +196,12 @@ tail -f /tmp/pi-annotate-host.log                    # Native host logs
 | "restricted URL" error | Provide a URL: `/annotate https://example.com` |
 | Native host not connecting | Click extension icon → check status, re-run install, fully restart the supported browser |
 | "Extension ID mismatch" | Copy install command from popup, re-run |
-| Socket errors | `ls -la /tmp/pi-annotate.sock` |
+| Socket/IPC errors | Unix: `ls -la /tmp/pi-annotate.sock`; Windows: ensure Pi and the browser are both running on Windows and reinstall with `.\install-windows.ps1 -ChromeExtensionId <id>` or `.\install-windows.ps1 -EdgeExtensionId <id>` |
 
 **Verify native host:**
+- Windows Google Chrome: `reg query HKCU\Software\Google\Chrome\NativeMessagingHosts\com.pi.annotate /ve`
+- Windows Microsoft Edge: `reg query HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.pi.annotate /ve`
+- Windows token file after opening the extension popup: `Test-Path "$env:LOCALAPPDATA\pi-annotate\pi-annotate.token"`
 - macOS Google Chrome: `cat ~/Library/Application\ Support/Google/Chrome/NativeMessagingHosts/com.pi.annotate.json`
 - macOS Google Chrome for Testing: `cat ~/Library/Application\ Support/Google/ChromeForTesting/NativeMessagingHosts/com.pi.annotate.json`
 - macOS Chromium: `cat ~/Library/Application\ Support/Chromium/NativeMessagingHosts/com.pi.annotate.json`
@@ -184,7 +210,7 @@ tail -f /tmp/pi-annotate-host.log                    # Native host logs
 - Linux Chromium (default path): `cat ~/.config/chromium/NativeMessagingHosts/com.pi.annotate.json`
 - Linux with custom config home: `echo "${CHROME_CONFIG_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}}"`
 
-If your Linux browser uses a different XDG config root, export `CHROME_CONFIG_HOME` or `XDG_CONFIG_HOME` before running `./install.sh <extension-id>`. Custom `--user-data-dir` layouts are not handled by this installer.
+If your Linux browser uses a different XDG config root, export `CHROME_CONFIG_HOME` or `XDG_CONFIG_HOME` before running `./install.sh <extension-id>`. Custom `--user-data-dir` layouts are not handled by this installer. On Windows, rerun `.\install-windows.ps1 -ChromeExtensionId <id>` or `.\install-windows.ps1 -EdgeExtensionId <id>` after reloading the unpacked extension if the browser assigns a new extension ID.
 
 ## License
 

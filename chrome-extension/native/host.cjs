@@ -1,15 +1,28 @@
 #!/usr/bin/env node
 const net = require("net");
 const fs = require("fs");
+const os = require("os");
+const path = require("path");
 
-const SOCKET_PATH = "/tmp/pi-annotate.sock";
-const TOKEN_PATH = "/tmp/pi-annotate.token";
-const LOG_FILE = "/tmp/pi-annotate-host.log";
+const IS_WINDOWS = process.platform === "win32";
+const WINDOWS_STATE_DIR = path.join(
+  process.env.LOCALAPPDATA || (process.env.USERPROFILE ? path.join(process.env.USERPROFILE, "AppData", "Local") : os.tmpdir()),
+  "pi-annotate",
+);
+const SOCKET_PATH = IS_WINDOWS ? "\\\\.\\pipe\\pi-annotate" : "/tmp/pi-annotate.sock";
+const TOKEN_PATH = IS_WINDOWS ? path.join(WINDOWS_STATE_DIR, "pi-annotate.token") : "/tmp/pi-annotate.token";
+const LOG_FILE = IS_WINDOWS ? path.join(WINDOWS_STATE_DIR, "pi-annotate-host.log") : "/tmp/pi-annotate-host.log";
 const MAX_NATIVE_MESSAGE_BYTES = 32 * 1024 * 1024; // 32MB (increased from 8MB for edit capture payloads)
 const MAX_SOCKET_BUFFER = 32 * 1024 * 1024; // 32MB
 const MAX_LOG_BYTES = 5 * 1024 * 1024; // 5MB
 
-process.umask(0o077);
+if (!IS_WINDOWS) {
+  process.umask(0o077);
+}
+
+if (IS_WINDOWS) {
+  fs.mkdirSync(WINDOWS_STATE_DIR, { recursive: true });
+}
 
 function reportFsError(action, err) {
   const code = err && typeof err === "object" && "code" in err && typeof err.code === "string" ? err.code : "";
@@ -36,11 +49,13 @@ const log = (msg) => {
 
 log("Host starting...");
 
-// Clean up old socket
-try {
-  fs.unlinkSync(SOCKET_PATH);
-} catch (err) {
-  reportFsError(`Failed to remove old socket ${SOCKET_PATH}`, err);
+// Clean up old Unix socket. Windows named pipes are not filesystem entries.
+if (!IS_WINDOWS) {
+  try {
+    fs.unlinkSync(SOCKET_PATH);
+  } catch (err) {
+    reportFsError(`Failed to remove old socket ${SOCKET_PATH}`, err);
+  }
 }
 
 // Store connected pi client
@@ -133,10 +148,12 @@ process.stdin.on("end", () => {
 });
 
 function cleanup() {
-  try {
-    fs.unlinkSync(SOCKET_PATH);
-  } catch (err) {
-    reportFsError(`Failed to remove socket ${SOCKET_PATH}`, err);
+  if (!IS_WINDOWS) {
+    try {
+      fs.unlinkSync(SOCKET_PATH);
+    } catch (err) {
+      reportFsError(`Failed to remove socket ${SOCKET_PATH}`, err);
+    }
   }
 
   try {
@@ -231,9 +248,11 @@ const server = net.createServer((socket) => {
 
 server.listen(SOCKET_PATH, () => {
   log(`Listening on ${SOCKET_PATH}`);
-  try {
-    fs.chmodSync(SOCKET_PATH, 0o600);
-  } catch (err) {
-    reportFsError(`Failed to chmod socket ${SOCKET_PATH}`, err);
+  if (!IS_WINDOWS) {
+    try {
+      fs.chmodSync(SOCKET_PATH, 0o600);
+    } catch (err) {
+      reportFsError(`Failed to chmod socket ${SOCKET_PATH}`, err);
+    }
   }
 });
